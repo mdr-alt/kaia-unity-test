@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 public class Web3Manager : MonoBehaviour
 {
   [SerializeField] private Button connectButton;
+  [SerializeField] private Button disconnectButton;
   [SerializeField] private Button mintButton;
   [SerializeField] private TextMeshProUGUI statusText;
   [SerializeField] private TextMeshProUGUI addressText;
@@ -14,6 +15,9 @@ public class Web3Manager : MonoBehaviour
 
   [DllImport("__Internal")]
   private static extern void ConnectWallet();
+
+  [DllImport("__Internal")]
+  private static extern void DisconnectWallet();
 
   [DllImport("__Internal")]
   private static extern string GetConnectedAddress();
@@ -27,6 +31,7 @@ public class Web3Manager : MonoBehaviour
   private void Start()
   {
     connectButton.onClick.AddListener(HandleConnectClick);
+    disconnectButton.onClick.AddListener(HandleDisconnectClick);
     mintButton.onClick.AddListener(HandleMintClick);
     UpdateUI();
   }
@@ -35,6 +40,13 @@ public class Web3Manager : MonoBehaviour
   {
 #if UNITY_WEBGL && !UNITY_EDITOR
             ConnectWallet();
+#endif
+  }
+
+  private void HandleDisconnectClick()
+  {
+#if UNITY_WEBGL && !UNITY_EDITOR
+            DisconnectWallet();
 #endif
   }
 
@@ -56,6 +68,12 @@ public class Web3Manager : MonoBehaviour
   public void OnWalletConnected(string address)
   {
     Debug.Log($"Wallet connected: {address}");
+    UpdateUI();
+  }
+
+  public void OnWalletDisconnected(string address)
+  {
+    Debug.Log($"Wallet disconnected");
     UpdateUI();
   }
 
