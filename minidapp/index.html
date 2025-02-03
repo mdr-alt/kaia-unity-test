@@ -1,53 +1,20 @@
 <!DOCTYPE html>
 <html lang="en-us">
-
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Unity WebGL Player</title>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <script src="scripts/dapp_portal_sdk.js"></script>
-  <!-- Note: could be dynamically imported, but this would increase load times -->
-  <!-- <script src="https://static.kaiawallet.io/js/dapp-portal-sdk.js"></script> -->
-
-
   <style>
-    body {
-      margin: 0;
-      padding: 0;
-    }
-
-    #unity-container {
-      width: 100%;
-      height: 100%;
-      position: absolute;
-    }
-
-    #unity-canvas {
-      width: 100%;
-      height: 100%;
-      background: #231F20;
-    }
-
-    #unity-loading-bar {
-      display: none;
-    }
-
-    #unity-progress-bar-empty {
-      width: 141px;
-      height: 18px;
-      margin-top: 10px;
-      background: url('Build/minidapp.progress-bar-empty-dark.png') no-repeat center;
-    }
-
-    #unity-progress-bar-full {
-      width: 0%;
-      height: 18px;
-      margin-top: 10px;
-      background: url('Build/minidapp.progress-bar-full-dark.png') no-repeat center;
-    }
+    body { margin: 0; padding: 0; }
+    #unity-container { width: 100%; height: 100%; position: absolute; }
+    #unity-canvas { width: 100%; height: 100%; background: #231F20; }
+    #unity-loading-bar { display: none; }
+    #unity-progress-bar-empty { width: 141px; height: 18px; margin-top: 10px; background: url('Build/minidapp.progress-bar-empty-dark.png') no-repeat center; }
+    #unity-progress-bar-full { width: 0%; height: 18px; margin-top: 10px; background: url('Build/minidapp.progress-bar-full-dark.png') no-repeat center; }
   </style>
 </head>
-
 <body>
   <div id="unity-container">
     <canvas id="unity-canvas"></canvas>
@@ -64,20 +31,23 @@
     var myGameInstance = null;
 
     var Module = {
-      onRuntimeInitialized: function () {
+      onRuntimeInitialized: function() {
         console.log("Runtime initialized");
       },
       env: {
-        MintToken: function (amount) {
+        MintToken: function(amount) {
           window.MintToken(amount);
         },
-        GetBalance: function () {
+        GetBalance: function() {
           window.GetBalance();
         },
-        ConnectWallet: function () {
+        ConnectWallet: function() {
           window.ConnectWallet();
         },
-        GetConnectedAddress: function () {
+        DisconnectWallet: function() {
+          window.DisconnectWallet();
+        },
+        GetConnectedAddress: function() {
           var address = window.GetConnectedAddress();
           var bufferSize = lengthBytesUTF8(address) + 1;
           var buffer = _malloc(bufferSize);
@@ -89,11 +59,20 @@
 
     async function initializeSDK() {
       try {
+        await liff.init({
+          liffId: "2006840113-pBd1OJQA"
+        });
+
+        if (!liff.isLoggedIn()) {
+          liff.login();
+        }
+
         sdk = await DappPortalSDK.init({
-          clientId: 'PASTE CLIENT ID',
+          clientId: 'YOUR CLIENT ID', // TODO: Get clientID
           chainId: '1001'
         });
-        console.log("SDK initialized");
+        
+        console.log("SDKs initialized");
         return true;
       } catch (error) {
         console.error("SDK init error:", error);
@@ -101,16 +80,21 @@
       }
     }
 
-    window.ConnectWallet = async function () {
+    window.ConnectWallet = async function() {
       try {
         if (!sdk) {
           const initialized = await initializeSDK();
           if (!initialized) return null;
         }
 
+        if (!liff.isLoggedIn()) {
+          liff.login();
+          return;
+        }
+
         const provider = sdk.getWalletProvider();
         const accounts = await provider.request({ method: 'kaia_requestAccounts' });
-
+        
         if (accounts && accounts.length > 0) {
           connectedAddress = accounts[0];
           myGameInstance.SendMessage('Web3Manager', 'OnWalletConnected', connectedAddress);
@@ -120,14 +104,30 @@
       }
     }
 
-    window.GetConnectedAddress = function () {
+    window.DisconnectWallet = async function() {
+      try {
+        if (liff.isLoggedIn()) {
+          await liff.logout();
+        }
+        
+        const provider = sdk.getWalletProvider();
+        await provider.request({ method: 'kaia_disconnect' });
+        connectedAddress = null;
+        myGameInstance.SendMessage('Web3Manager', 'OnWalletDisconnected');
+      } catch (error) {
+        console.error("Disconnect error:", error);
+        myGameInstance.SendMessage('Web3Manager', 'OnWalletError', error.message);
+      }
+    }
+
+    window.GetConnectedAddress = function() {
       return connectedAddress || '';
     }
 
-    window.MintToken = async function (amount) {
+    window.MintToken = async function(amount) {
       try {
         const provider = sdk.getWalletProvider();
-
+        
         const mintSignature = '0xa0712d68';
         const amountHex = amount.toString(16).padStart(64, '0');
         const data = mintSignature + amountHex;
@@ -146,16 +146,16 @@
         });
 
         myGameInstance.SendMessage('Web3Manager', 'OnMintSuccess', txHash);
-        GetBalance(); // Get updated balance after mint
+        GetBalance();
       } catch (error) {
         myGameInstance.SendMessage('Web3Manager', 'OnMintError', error.message);
       }
     }
 
-    window.GetBalance = async function () {
+    window.GetBalance = async function() {
       try {
         const provider = sdk.getWalletProvider();
-
+        
         const balanceSignature = '0x70a08231';
         const addressParam = connectedAddress.substring(2).padStart(64, '0');
         const data = balanceSignature + addressParam;
@@ -189,5 +189,4 @@
     });
   </script>
 </body>
-
 </html>
